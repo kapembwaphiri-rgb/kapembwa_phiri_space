@@ -1,0 +1,3 @@
+# The application uses an existing PostgreSQL database configured in server/.env.
+# This file intentionally does not create or seed a database.
+services: {}
