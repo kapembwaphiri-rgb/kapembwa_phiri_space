@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import App from './App.jsx';
 import { CartProvider } from './context/CartContext.jsx';
+import { ThemeProvider } from './context/ThemeContext.jsx';
 
 export default function StorefrontApp() {
   const [mounted, setMounted] = useState(false);
@@ -12,5 +13,5 @@ export default function StorefrontApp() {
   }, []);
 
   if (!mounted) return <div className="app-loading">CHI-WHITE</div>;
-  return <CartProvider><App /></CartProvider>;
+  return <ThemeProvider><CartProvider><App /></CartProvider></ThemeProvider>;
 }

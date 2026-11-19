@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ImagePlus, Search, X } from 'lucide-react';
-import { productApi } from '../services/api.js';
+import { assetUrl, productApi } from '../services/api.js';
 import { formatZmw } from '../utils/currency.js';
 
 const sizeOptions = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'ONE_SIZE'];
@@ -31,6 +31,7 @@ export default function ProductManager({ productMetrics = new Map() }) {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [sortBy, setSortBy] = useState('name');
@@ -140,22 +141,23 @@ export default function ProductManager({ productMetrics = new Map() }) {
     setMessage('');
     setSaving(true);
     try {
-      const pendingImages = imageItems.filter((image) => image.file);
-      const uploadedImages = pendingImages.length
-        ? await productApi.uploadImages(pendingImages.map((image) => image.file))
-        : [];
-      let uploadedIndex = 0;
-      const images = imageItems.map((image) => image.url || uploadedImages[uploadedIndex++]);
-      const payload = {
-        ...form,
-        price: Number(form.price),
-        sizes: form.sizes.map((variant) => ({ ...variant, quantity: Number(variant.quantity) })),
-        reorder_level: Number(form.reorder_level),
-        images,
-        image_url: images[0] || null
-      };
-      if (editingId) await productApi.update(editingId, payload);
-      else await productApi.create(payload);
+      const payload = new FormData();
+      for (const field of ['sku', 'name', 'description', 'category', 'price', 'reorder_level']) {
+        payload.append(field, form[field]);
+      }
+      payload.append('sizes', JSON.stringify(form.sizes.map((variant) => ({
+        ...variant,
+        quantity: Number(variant.quantity)
+      }))));
+      let uploadIndex = 0;
+      payload.append('image_order', JSON.stringify(imageItems.map((image) => image.file
+        ? { type: 'upload', index: uploadIndex++ }
+        : { type: 'existing', value: image.url })));
+      for (const image of imageItems) {
+        if (image.file) payload.append('images', image.file);
+      }
+      if (editingId) await productApi.update(editingId, payload, setUploadProgress);
+      else await productApi.create(payload, setUploadProgress);
       await loadProducts();
       window.dispatchEvent(new Event('inventory-updated'));
       resetForm();
@@ -163,6 +165,7 @@ export default function ProductManager({ productMetrics = new Map() }) {
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to save product.');
     } finally {
+      setUploadProgress(null);
       setSaving(false);
     }
   };
@@ -171,7 +174,7 @@ export default function ProductManager({ productMetrics = new Map() }) {
     releasePreviewUrls();
     setEditingId(product.id);
     const images = product.images?.length ? product.images : product.image_url ? [product.image_url] : [];
-    setImageItems(images.map((url, index) => ({ id: `${product.id}-${index}`, url, preview: url })));
+    setImageItems(images.map((url, index) => ({ id: `${product.id}-${index}`, url, preview: assetUrl(url) })));
     setForm({
       sku: product.sku,
       name: product.name,
@@ -193,7 +196,7 @@ export default function ProductManager({ productMetrics = new Map() }) {
     releasePreviewUrls();
     setEditingId(null);
     const images = product.images?.length ? product.images : product.image_url ? [product.image_url] : [];
-    setImageItems(images.map((url, index) => ({ id: `${product.id}-copy-${index}`, url, preview: url })));
+    setImageItems(images.map((url, index) => ({ id: `${product.id}-copy-${index}`, url, preview: assetUrl(url) })));
     setForm({
       sku: '',
       name: `${product.name} copy`,
@@ -313,8 +316,9 @@ export default function ProductManager({ productMetrics = new Map() }) {
             id="product-images"
             className="product-image-file-input"
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
             multiple
+            disabled={saving}
             onChange={(event) => {
               addImages(event.target.files);
               event.target.value = '';
@@ -326,6 +330,9 @@ export default function ProductManager({ productMetrics = new Map() }) {
           <span>or click to browse your device</span>
           <small id="product-image-help">First image is used as the product cover.</small>
         </label>
+        {uploadProgress !== null && <div className="upload-progress" role="status" aria-live="polite">
+          <span>Uploading images {uploadProgress}%</span><progress aria-label="Product image upload progress" max="100" value={uploadProgress}>{uploadProgress}%</progress>
+        </div>}
         {imageItems.length > 0 && <div className="product-image-previews" aria-label="Product image previews">
           {imageItems.map((image, index) => <figure className="product-image-preview" key={image.id}>
             <img src={image.preview} alt={`${form.name || 'Product'} image ${index + 1}`} />
@@ -364,7 +371,7 @@ export default function ProductManager({ productMetrics = new Map() }) {
           })}
         </div>
       </fieldset>
-      <button className="primary product-manager-submit" type="submit" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Add product'}</button>
+      <button className="primary product-manager-submit" type="submit" disabled={saving}>{saving ? uploadProgress === null ? 'Saving…' : `Uploading ${uploadProgress}%…` : editingId ? 'Save changes' : 'Add product'}</button>
     </form>
 
     <div className="product-list-toolbar">
@@ -392,7 +399,7 @@ export default function ProductManager({ productMetrics = new Map() }) {
           const metrics = productMetrics.get(product.id);
           return <tr key={product.id}>
           <td><input type="checkbox" checked={selectedProducts.includes(product.id)} onChange={(event) => toggleProduct(product.id, event.target.checked)} aria-label={`Select ${product.name}`} /></td>
-          <td><span className="manager-product-name">{product.image_url ? <img src={product.image_url} alt="" /> : <span className="manager-product-placeholder">CW</span>}<strong>{product.name}</strong></span></td><td>{product.sku}</td><td>{product.category}</td>
+          <td><span className="manager-product-name">{product.image_url ? <img src={assetUrl(product.image_url)} alt="" /> : <span className="manager-product-placeholder">CW</span>}<strong>{product.name}</strong></span></td><td>{product.sku}</td><td>{product.category}</td>
           <td className={product.quantity <= product.reorder_level ? 'low' : ''}>
             {product.sizes?.length
               ? product.sizes.filter((variant) => Number(variant.quantity) > 0).map((variant) => `${variant.size === 'ONE_SIZE' ? 'One size' : variant.size}: ${variant.quantity}`).join(' · ') || 'Out of stock'

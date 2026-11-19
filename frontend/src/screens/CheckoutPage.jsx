@@ -9,7 +9,7 @@ import { orderApi } from '../services/api.js';
 import { formatZmw } from '../utils/currency.js';
 import { downloadReceipt } from '../utils/receipt.js';
 
-export default function CheckoutPage() {
+export default function CheckoutPage({ user }) {
   const { cart, cartId, clearCart, cartError } = useCart();
   const [cashierName, setCashierName] = useState('Chi-White staff');
   const [customerName, setCustomerName] = useState('');
@@ -22,7 +22,13 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     const storedUser = localStorage.getItem('pos_user');
-    if (storedUser) setCashierName(JSON.parse(storedUser).name || 'Chi-White staff');
+    if (storedUser) {
+      const currentUser = JSON.parse(storedUser);
+      setCashierName(currentUser.name || 'Chi-White staff');
+      if (currentUser.role === 'CUSTOMER') setCustomerName(currentUser.name || '');
+    } else if (user?.role === 'CUSTOMER') {
+      setCustomerName(user.name || '');
+    }
     const online = () => setOffline(false);
     const offlineHandler = () => setOffline(true);
     addEventListener('online', online);
@@ -31,7 +37,7 @@ export default function CheckoutPage() {
       removeEventListener('online', online);
       removeEventListener('offline', offlineHandler);
     };
-  }, []);
+  }, [user?.name, user?.role]);
 
   const placeOrder = async (event) => {
     event.preventDefault();

@@ -4,30 +4,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowDownRight, ArrowUpRight, BarChart3, Boxes, ChevronRight,
   CircleDollarSign, ClipboardList, Download, FileBarChart, LayoutDashboard,
-  Menu, Moon, Package, Search, Settings, ShieldCheck, ShoppingBag, Sun,
-  Users, X
+  Menu, Moon, Package, ShieldCheck, ShoppingBag, Sun, Users, X
 } from 'lucide-react';
-import { reportApi } from '../services/api.js';
+import { assetUrl, reportApi } from '../services/api.js';
 import { formatZmw } from '../utils/currency.js';
 import ProductManager from '../components/ProductManager.jsx';
+import ProfileMenu from '../components/ProfileMenu.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 const navigation = [
   { section: 'WORKSPACE' },
-  { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, available: true },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3, available: true },
+  { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
   { section: 'CATALOG & SALES' },
-  { id: 'products', label: 'Products', icon: Package, available: true },
-  { id: 'inventory', label: 'Inventory', icon: Boxes, available: true },
-  { id: 'orders', label: 'Orders', icon: ShoppingBag, available: true },
-  { id: 'customers', label: 'Customers', icon: Users, available: true },
-  { section: 'GROW YOUR STORE' },
-  { id: 'messages', label: 'Messages', icon: Activity },
-  { id: 'marketing', label: 'Marketing', icon: BarChart3 },
-  { id: 'discounts', label: 'Discounts', icon: CircleDollarSign },
-  { id: 'reviews', label: 'Reviews', icon: ShieldCheck },
+  { id: 'products', label: 'Products', icon: Package },
+  { id: 'inventory', label: 'Inventory', icon: Boxes },
+  { id: 'orders', label: 'Orders', icon: ShoppingBag },
+  { id: 'customers', label: 'Customers', icon: Users },
   { section: 'REPORTING' },
-  { id: 'reports', label: 'Reports', icon: FileBarChart, available: true },
-  { id: 'settings', label: 'Settings', icon: Settings }
+  { id: 'reports', label: 'Reports', icon: FileBarChart }
 ];
 
 const initialDashboard = {
@@ -143,9 +137,10 @@ export default function DashboardPage({ user, onLogout }) {
   const [section, setSection] = useState('overview');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const { theme, toggleTheme } = useTheme();
+  const darkMode = theme === 'dark';
 
   const loadDashboard = useCallback(async (selectedRange = range) => {
     setLoading(true);
@@ -176,22 +171,6 @@ export default function DashboardPage({ user, onLogout }) {
   }, [loadDashboard]);
 
   useEffect(() => {
-    try {
-      setDarkMode(localStorage.getItem('chi_seller_theme') === 'dark');
-    } catch {
-      setDarkMode(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('chi_seller_theme', darkMode ? 'dark' : 'light');
-    } catch {
-      setError('Theme preference could not be saved in this browser.');
-    }
-  }, [darkMode]);
-
-  useEffect(() => {
     if (!mobileNavOpen) return undefined;
     const closeOnEscape = (event) => {
       if (event.key === 'Escape') setMobileNavOpen(false);
@@ -205,10 +184,8 @@ export default function DashboardPage({ user, onLogout }) {
   ), [dashboard.products]);
 
   const navTo = (id) => {
-    if (navigation.find((item) => item.id === id)?.available) {
-      setSection(id === 'analytics' ? 'overview' : id);
-      setMobileNavOpen(false);
-    }
+    setSection(id);
+    setMobileNavOpen(false);
   };
 
   const sectionName = navigation.find((item) => item.id === section)?.label || 'Dashboard';
@@ -235,15 +212,12 @@ export default function DashboardPage({ user, onLogout }) {
           : <button
             type="button"
             key={item.id}
-            className={`seller-nav-link${section === item.id || (item.id === 'analytics' && section === 'overview') ? ' is-active' : ''}${!item.available ? ' is-disabled' : ''}`}
+            className={`seller-nav-link${section === item.id ? ' is-active' : ''}`}
             onClick={() => navTo(item.id)}
-            disabled={!item.available}
             aria-current={section === item.id ? 'page' : undefined}
-            title={!item.available ? `${item.label} is not available in this store yet` : undefined}
           >
             <item.icon size={17} aria-hidden="true" />
             <span>{item.label}</span>
-            {!item.available && <span className="seller-nav-soon">Soon</span>}
           </button>)}
       </nav>
       <div className="seller-sidebar-bottom">
@@ -257,13 +231,13 @@ export default function DashboardPage({ user, onLogout }) {
         <button type="button" className="seller-mobile-menu" onClick={() => setMobileNavOpen(true)} aria-label="Open seller navigation" aria-expanded={mobileNavOpen}><Menu size={20} /></button>
         <div className="seller-breadcrumb"><span>Seller workspace</span><ChevronRight size={14} /><strong>{sectionName}</strong></div>
         <div className="seller-top-actions">
-          <button type="button" className="seller-icon-button" onClick={() => setDarkMode(!darkMode)} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+          <button type="button" className="seller-icon-button" onClick={toggleTheme} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} aria-pressed={darkMode}>
             {darkMode ? <Sun size={17} /> : <Moon size={17} />}
           </button>
           <button type="button" className="seller-refresh" onClick={() => void loadDashboard()} disabled={loading}>
             <Activity size={15} /> {loading ? 'Updating…' : 'Refresh'}
           </button>
-          <span className="seller-user-avatar" aria-label={user?.name}>{(user?.name || 'C').charAt(0).toUpperCase()}</span>
+          <ProfileMenu user={user} onLogout={onLogout} className="seller-profile-menu" />
         </div>
       </header>
 
@@ -271,9 +245,9 @@ export default function DashboardPage({ user, onLogout }) {
         <div className="seller-page-heading">
           <div>
             <p className="seller-eyebrow">CHI-WHITE / BUSINESS OVERVIEW</p>
-            <h1>{section === 'overview' || section === 'analytics' ? 'Your store at a glance' : sectionName}</h1>
+            <h1>            {section === 'overview' ? 'Your store at a glance' : sectionName}</h1>
             <p className="seller-subtitle">
-              {section === 'overview' || section === 'analytics'
+              {section === 'overview'
                 ? 'A clear view of sales, orders, stock and customer growth.'
                 : section === 'products' ? 'Manage your active collection, prices, imagery and size-level stock.'
                   : section === 'inventory' ? 'Review available stock and identify products that need attention.'
@@ -290,7 +264,7 @@ export default function DashboardPage({ user, onLogout }) {
 
         {error && <p className="seller-error" role="alert">{error}</p>}
 
-        {(section === 'overview' || section === 'analytics') && <>
+        {section === 'overview' && <>
           <section className="seller-kpis seller-kpis-primary" aria-label="Sales performance">
             <article className="seller-kpi-card">
               <span className="seller-kpi-icon is-violet"><CircleDollarSign size={19} /></span>
@@ -359,7 +333,7 @@ export default function DashboardPage({ user, onLogout }) {
               {dashboard.products.length
                 ? <div className="seller-top-products">{dashboard.products.slice(0, 5).map((product, index) => <div className="seller-top-product" key={product.id}>
                   <span className="seller-product-rank">{String(index + 1).padStart(2, '0')}</span>
-                  {product.image_url ? <img src={product.image_url} alt="" /> : <span className="seller-product-placeholder"><Package size={17} /></span>}
+                  {product.image_url ? <img src={assetUrl(product.image_url)} alt="" /> : <span className="seller-product-placeholder"><Package size={17} /></span>}
                   <span className="seller-product-info"><strong>{product.name}</strong><small>{product.category} · {product.units_sold} sold</small></span>
                   <strong className="seller-product-revenue">{formatZmw(product.revenue)}</strong>
                 </div>)}</div>
@@ -394,7 +368,7 @@ export default function DashboardPage({ user, onLogout }) {
             ? <div className="seller-table-wrap"><table className="seller-table">
               <thead><tr><th>Product</th><th>Category</th><th>Size availability</th><th>Total stock</th><th>Status</th></tr></thead>
               <tbody>{dashboard.products.map((product) => <tr key={product.id}>
-                <td><div className="seller-table-product">{product.image_url ? <img src={product.image_url} alt="" /> : <span><Package size={16} /></span>}<strong>{product.name}</strong></div></td>
+                <td><div className="seller-table-product">{product.image_url ? <img src={assetUrl(product.image_url)} alt="" /> : <span><Package size={16} /></span>}<strong>{product.name}</strong></div></td>
                 <td>{product.category}</td>
                 <td>{product.sizes?.filter((size) => Number(size.quantity) > 0).map((size) => `${size.size === 'ONE_SIZE' ? 'One size' : size.size}: ${size.quantity}`).join(' · ') || 'No available sizes'}</td>
                 <td>{product.stock_quantity}</td>

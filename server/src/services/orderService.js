@@ -20,7 +20,7 @@ function calculateTax(items, subtotal, discount) {
   return Math.round(tax * 100) / 100;
 }
 
-export async function checkout({ cartId, customer, paymentMethod }) {
+export async function checkout({ cartId, customer, paymentMethod, accountId = null }) {
   if (!paymentMethods.has(paymentMethod)) {
     throw new HttpError(400, 'Choose a supported payment method.');
   }
@@ -63,6 +63,7 @@ export async function checkout({ cartId, customer, paymentMethod }) {
         phone: customer.phone?.trim() || '',
         address: customer.address?.trim() || ''
       }),
+      accountId,
       cartId,
       paymentMethod,
       status: 'PROCESSING',
@@ -110,8 +111,13 @@ export async function checkout({ cartId, customer, paymentMethod }) {
   });
 }
 
-export async function getOrder(id) {
-  const order = await orderRepository.getOrder(id);
+export async function getOrder(id, user) {
+  const accountId = user?.role === 'CUSTOMER' ? user.id : null;
+  const order = await orderRepository.getOrder(id, accountId);
   if (!order) throw new HttpError(404, 'Order not found.');
   return { order };
+}
+
+export async function listOrdersForAccount(accountId) {
+  return { orders: await orderRepository.listOrdersForAccount(accountId) };
 }

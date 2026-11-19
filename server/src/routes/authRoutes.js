@@ -3,6 +3,8 @@ import { body } from 'express-validator';
 import { rateLimit } from 'express-rate-limit';
 import { validateRequest } from '../middleware/errorHandler.js';
 import * as authController from '../controllers/authController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
+import { uploadProfileImage } from '../middleware/productImageUpload.js';
 
 const router = Router();
 const loginLimiter = rateLimit({
@@ -36,6 +38,29 @@ router.post(
   body('password').isString().isLength({ min: 12, max: 72 }),
   validateRequest,
   authController.registerCustomer
+);
+router.get('/profile', requireAuth, authController.getProfile);
+router.put(
+  '/profile',
+  requireAuth,
+  body('name').isString().trim().isLength({ min: 2, max: 120 }),
+  body('phone').optional({ nullable: true }).isString().isLength({ max: 32 }),
+  validateRequest,
+  authController.updateProfile
+);
+router.post(
+  '/profile/photo',
+  requireAuth,
+  uploadProfileImage,
+  authController.updateProfilePhoto
+);
+router.post(
+  '/change-password',
+  requireAuth,
+  body('currentPassword').isString().isLength({ min: 1, max: 72 }),
+  body('newPassword').isString().isLength({ min: 12, max: 72 }),
+  validateRequest,
+  authController.changePassword
 );
 
 export default router;

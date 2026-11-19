@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { body, param } from 'express-validator';
-import { requireAuth } from '../middleware/authMiddleware.js';
+import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import { validateRequest } from '../middleware/errorHandler.js';
 import * as orderController from '../controllers/orderController.js';
 
 const router = Router();
 
+router.get('/', requireAuth, requireRole('CUSTOMER'), orderController.listOrders);
 router.post(
   '/checkout',
   requireAuth,

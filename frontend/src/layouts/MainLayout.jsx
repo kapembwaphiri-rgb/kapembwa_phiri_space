@@ -25,6 +25,8 @@ export default function MainLayout({ user, onLogout, children }) {
         <div className="footer-column">
           <h2>Your account</h2>
           <Link href={user ? '/bag' : '/login'}>{user ? 'Your bag' : 'Sign in'}</Link>
+          {user?.role === 'CUSTOMER' && <><Link href="/account">My account</Link><Link href="/orders">My orders</Link></>}
+          {user && <Link href="/profile">My profile</Link>}
           <Link href="/signup">Create an account</Link>
           {['MANAGER', 'SUPER_ADMIN'].includes(user?.role) && <Link href="/dashboard">Store dashboard</Link>}
         </div>

@@ -42,10 +42,10 @@ export async function createCustomer(client, customer) {
 export async function createOrder(client, order) {
   await client.query(
     `INSERT INTO orders
-       (id, order_number, customer_id, payment_method, status, subtotal, discount_total, tax_total, total, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+       (id, order_number, customer_id, account_id, payment_method, status, subtotal, discount_total, tax_total, total, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
     [
-      order.id, order.orderNumber, order.customerId, order.paymentMethod, order.status,
+      order.id, order.orderNumber, order.customerId, order.accountId, order.paymentMethod, order.status,
       order.subtotal, order.discount, order.tax, order.total
     ]
   );
@@ -85,7 +85,7 @@ export async function createOrder(client, order) {
   await client.query('DELETE FROM cart_items WHERE cart_id = $1', [order.cartId]);
 }
 
-export async function getOrder(orderId) {
+export async function getOrder(orderId, accountId = null) {
   const result = await query(
     `SELECT o.id, o.order_number AS "orderNumber", o.payment_method AS "paymentMethod",
             o.status, o.subtotal, o.discount_total AS discount, o.tax_total AS tax, o.total,
@@ -95,8 +95,9 @@ export async function getOrder(orderId) {
        JOIN order_items oi ON oi.order_id = o.id
        JOIN products p ON p.id = oi.product_id
       WHERE o.id = $1
+        AND ($2::uuid IS NULL OR o.account_id = $2)
       ORDER BY p.name`,
-    [orderId]
+    [orderId, accountId]
   );
   if (!result.rows.length) return null;
   const first = result.rows[0];
@@ -119,4 +120,47 @@ export async function getOrder(orderId) {
       lineTotal: Number(row.lineTotal)
     }))
   };
+}
+
+export async function listOrdersForAccount(accountId) {
+  const result = await query(
+    `SELECT o.id, o.order_number AS "orderNumber", o.payment_method AS "paymentMethod",
+            o.status, o.subtotal, o.discount_total AS discount, o.tax_total AS tax, o.total,
+            o.created_at AS "createdAt", p.name, p.category, oi.size, oi.quantity,
+            oi.unit_price AS price, oi.line_total AS "lineTotal"
+       FROM orders o
+       LEFT JOIN order_items oi ON oi.order_id = o.id
+       LEFT JOIN products p ON p.id = oi.product_id
+      WHERE o.account_id = $1
+      ORDER BY o.created_at DESC, p.name`,
+    [accountId]
+  );
+  const orders = new Map();
+  for (const row of result.rows) {
+    if (!orders.has(row.id)) {
+      orders.set(row.id, {
+        id: row.id,
+        orderNumber: row.orderNumber,
+        paymentMethod: row.paymentMethod,
+        status: row.status,
+        subtotal: Number(row.subtotal),
+        discount: Number(row.discount),
+        tax: Number(row.tax),
+        total: Number(row.total),
+        createdAt: row.createdAt,
+        items: []
+      });
+    }
+    if (row.name) {
+      orders.get(row.id).items.push({
+        name: row.name,
+        category: row.category,
+        size: row.size,
+        quantity: row.quantity,
+        price: Number(row.price),
+        lineTotal: Number(row.lineTotal)
+      });
+    }
+  }
+  return [...orders.values()];
 }

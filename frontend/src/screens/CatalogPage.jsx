@@ -15,17 +15,14 @@ export default function CatalogPage({ initialCategory = '' }) {
   const searchParams = useSearchParams();
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState(searchParams.get('search') || '');
-  const [category, setCategory] = useState(initialCategory);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(!navigator.onLine);
   const { cartError } = useCart();
   useEffect(() => {
-    setCategory(initialCategory);
-  }, [initialCategory]);
-  useEffect(() => {
     setSearch(searchParams.get('search') || '');
   }, [searchParams]);
+  const category = initialCategory;
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -73,15 +70,6 @@ export default function CatalogPage({ initialCategory = '' }) {
           <Search size={17} aria-hidden="true" />
           <input className="search" placeholder="Search by name, SKU, or description" value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search products" />
         </div>
-        <label className="catalog-category-label">
-          Category
-          <select className="search" value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option value="">All products</option>
-            <option value="SHIRT">Plain white shirts</option>
-            <option value="HOODIE">Hoodies</option>
-            <option value="DESIGNER">Designer clothes</option>
-          </select>
-        </label>
       </div>
       <p className="collection-note">Plain white essentials, considered hoodies, and selected designer pieces.</p>
       {loading && <p className="muted" role="status">Loading the collection…</p>}

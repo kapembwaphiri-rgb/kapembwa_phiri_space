@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Minus, Plus, X } from 'lucide-react';
 import { useCart } from '../context/CartContext.jsx';
+import { assetUrl } from '../services/api.js';
 import { formatZmw } from '../utils/currency.js';
 
 export default function CartDrawer({ open, onClose, user }) {
@@ -73,7 +74,7 @@ export default function CartDrawer({ open, onClose, user }) {
           ? <div className="drawer-empty"><p>Your bag is waiting for its first piece.</p><Link className="secondary" href="/catalog" onClick={onClose}>Explore the collection</Link></div>
           : cart.map((item) => <article className="drawer-item" key={`${item.id}-${item.size || 'ONE_SIZE'}`}>
             {item.image_url
-              ? <img src={item.image_url} alt="" loading="lazy" />
+              ? <img src={assetUrl(item.image_url)} alt="" loading="lazy" />
               : <div className="drawer-item-placeholder" aria-hidden="true">CHI-WHITE</div>}
             <div className="drawer-item-details">
               <span className="drawer-item-category">{item.category}</span>

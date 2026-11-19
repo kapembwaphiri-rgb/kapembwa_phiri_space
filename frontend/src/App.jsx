@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import MainLayout from './layouts/MainLayout.jsx';
 import HomePage from './screens/HomePage.jsx';
@@ -8,7 +8,11 @@ import CatalogPage from './screens/CatalogPage.jsx';
 import BagPage from './screens/BagPage.jsx';
 import CheckoutPage from './screens/CheckoutPage.jsx';
 import DashboardPage from './screens/DashboardPage.jsx';
+import CustomerDashboardPage from './screens/CustomerDashboardPage.jsx';
+import OrdersPage from './screens/OrdersPage.jsx';
+import ProfilePage from './screens/ProfilePage.jsx';
 import { useCart } from './context/CartContext.jsx';
+import { authApi } from './services/api.js';
 
 export default function App() {
   const pathname = usePathname();
@@ -20,7 +24,23 @@ export default function App() {
     const cached = localStorage.getItem('pos_user');
     if (cached) {
       try {
-        setUser(JSON.parse(cached));
+        const cachedUser = JSON.parse(cached);
+        setUser(cachedUser);
+        if (localStorage.getItem('pos_token')) {
+          authApi.profile()
+            .then(({ profile }) => {
+              const synchronizedUser = { ...cachedUser, ...profile };
+              setUser(synchronizedUser);
+              localStorage.setItem('pos_user', JSON.stringify(synchronizedUser));
+            })
+            .catch((error) => {
+              if (error instanceof Error && /401|expired|invalid/i.test(error.message)) {
+                localStorage.removeItem('pos_user');
+                localStorage.removeItem('pos_token');
+                setUser(null);
+              }
+            });
+        }
       } catch {
         localStorage.removeItem('pos_user');
         localStorage.removeItem('pos_token');
@@ -36,7 +56,15 @@ export default function App() {
     router.push('/');
   };
 
+  const updateProfile = useCallback((profile) => {
+    setUser((current) => current ? { ...current, ...profile } : current);
+  }, []);
+  useEffect(() => {
+    if (user) localStorage.setItem('pos_user', JSON.stringify(user));
+  }, [user]);
+
   const manager = ['MANAGER', 'SUPER_ADMIN'].includes(user?.role);
+  const customer = user?.role === 'CUSTOMER';
   const categoryRoutes = {
     '/catalog/white-shirts': 'SHIRT',
     '/catalog/hoodies': 'HOODIE',
@@ -50,22 +78,28 @@ export default function App() {
   } else if (pathname === '/bag') {
     page = <BagPage user={user} />;
   } else if (pathname === '/checkout') {
-    page = user ? <CheckoutPage /> : null;
+    page = user ? <CheckoutPage user={user} /> : null;
   } else if (pathname === '/dashboard') {
     page = manager ? <DashboardPage user={user} onLogout={logout} /> : null;
+  } else if (pathname === '/account') {
+    page = customer ? <CustomerDashboardPage user={user} /> : null;
+  } else if (pathname === '/orders') {
+    page = customer ? <OrdersPage /> : null;
+  } else if (pathname === '/profile') {
+    page = user ? <ProfilePage user={user} onProfileUpdate={updateProfile} /> : null;
   }
 
   useEffect(() => {
     if (!ready) return;
     if (page) return;
-    if (pathname === '/checkout' && !user) {
+    if (['/checkout', '/profile', '/account', '/orders'].includes(pathname) && !user) {
       router.replace('/login');
-    } else if (pathname === '/dashboard' && !manager) {
+    } else if (['/dashboard', '/account', '/orders'].includes(pathname) && !manager && !customer) {
       router.replace(user ? '/catalog' : '/login');
     } else if (pathname !== '/' && pathname !== '/login' && pathname !== '/signup') {
       router.replace('/');
     }
-  }, [manager, page, pathname, ready, router, user]);
+  }, [customer, manager, page, pathname, ready, router, user]);
 
   if (!ready) return <div className="app-loading" role="status">Loading Chi-White…</div>;
 

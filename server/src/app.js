@@ -3,7 +3,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { errorHandler, HttpError } from './middleware/errorHandler.js';
-import { productImageDirectory } from './middleware/productImageUpload.js';
+import { productImageDirectory, profileImageDirectory } from './middleware/productImageUpload.js';
 import authRoutes from './routes/authRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
@@ -31,6 +31,10 @@ app.use('/uploads/products', (req, res, next) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
 }, express.static(productImageDirectory, { maxAge: '1y', immutable: true }));
+app.use('/uploads/profiles', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(profileImageDirectory, { maxAge: '1y', immutable: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,

@@ -1,5 +1,6 @@
 import * as productService from '../services/productService.js';
 import { HttpError } from '../middleware/errorHandler.js';
+import { removeUploadedImageFiles } from '../middleware/productImageUpload.js';
 
 export async function listProducts(req, res, next) {
   try {
@@ -34,6 +35,12 @@ export async function createProduct(req, res, next) {
   try {
     res.status(201).json({ product: await productService.createProduct(req.body) });
   } catch (error) {
+    try {
+      await removeUploadedImageFiles(req.files || []);
+    } catch (cleanupError) {
+      next(cleanupError);
+      return;
+    }
     next(error);
   }
 }
@@ -42,6 +49,12 @@ export async function updateProduct(req, res, next) {
   try {
     res.json({ product: await productService.updateProduct(req.params.id, req.body) });
   } catch (error) {
+    try {
+      await removeUploadedImageFiles(req.files || []);
+    } catch (cleanupError) {
+      next(cleanupError);
+      return;
+    }
     next(error);
   }
 }

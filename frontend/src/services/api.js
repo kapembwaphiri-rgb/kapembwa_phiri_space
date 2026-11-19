@@ -1,10 +1,21 @@
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/$/, '');
 
+function isFormData(body) {
+  return typeof FormData !== 'undefined' && body instanceof FormData;
+}
+
+export function assetUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  return new URL(path, new URL(API_URL).origin).href;
+}
+
 export async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
+  const formDataBody = isFormData(options.body);
   const token = typeof window === 'undefined' ? null : localStorage.getItem('pos_token');
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  if (options.body !== undefined && !headers.has('Content-Type')) {
+  if (options.body !== undefined && !formDataBody && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -13,7 +24,9 @@ export async function api(path, options = {}) {
     headers,
     body: options.body === undefined
       ? undefined
-      : typeof options.body === 'string'
+      : formDataBody
+        ? options.body
+        : typeof options.body === 'string'
         ? options.body
         : JSON.stringify(options.body)
   });
@@ -57,34 +70,65 @@ export function getCartId() {
   return cartId;
 }
 
-async function uploadProductImages(files) {
+function uploadFormData(path, body, onProgress, method = 'POST') {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    const token = localStorage.getItem('pos_token');
+    request.open(method, `${API_URL}${path}`);
+    if (token) request.setRequestHeader('Authorization', `Bearer ${token}`);
+    request.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    });
+    request.addEventListener('error', () => reject(new Error('The upload could not reach the API.')));
+    request.addEventListener('abort', () => reject(new Error('The upload was cancelled.')));
+    request.addEventListener('load', () => {
+      const contentType = request.getResponseHeader('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        reject(new Error(`The upload returned an unexpected response (${request.status}).`));
+        return;
+      }
+      let data;
+      try {
+        data = JSON.parse(request.responseText);
+      } catch {
+        reject(new Error('The upload returned an invalid response.'));
+        return;
+      }
+      if (request.status < 200 || request.status >= 300) {
+        reject(new Error(data.error || `The upload failed (${request.status}).`));
+        return;
+      }
+      resolve(data);
+    });
+    request.send(body);
+  });
+}
+
+async function uploadProductImages(files, onProgress) {
   const body = new FormData();
   for (const file of files) body.append('images', file);
-  const headers = {};
-  const token = localStorage.getItem('pos_token');
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const data = await uploadFormData('/products/images', body, onProgress);
+  return data.images.map(assetUrl);
+}
 
-  const response = await fetch(`${API_URL}/products/images`, {
-    method: 'POST',
-    headers,
-    body
-  });
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    throw new Error(`The image upload returned an unexpected response (${response.status}).`);
-  }
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || `The image upload failed (${response.status}).`);
-  const apiOrigin = new URL(API_URL).origin;
-  return data.images.map((path) => new URL(path, apiOrigin).href);
+async function uploadProfilePhoto(file, onProgress) {
+  const body = new FormData();
+  body.append('image', file);
+  return uploadFormData('/auth/profile/photo', body, onProgress);
 }
 
 export const productApi = {
   list: (filters = {}) => api(`/products${queryString(filters)}`),
   get: (id) => api(`/products/${encodeURIComponent(id)}`),
   uploadImages: uploadProductImages,
-  create: (product) => api('/products', { method: 'POST', body: product }),
-  update: (id, changes) => api(`/products/${encodeURIComponent(id)}`, { method: 'PUT', body: changes }),
+  create: (product, onProgress) => isFormData(product)
+    ? uploadFormData('/products', product, onProgress)
+    : api('/products', { method: 'POST', body: product }),
+  update: (id, changes, onProgress) => isFormData(changes)
+    ? uploadFormData(`/products/${encodeURIComponent(id)}`, changes, onProgress, 'PUT')
+    : api(`/products/${encodeURIComponent(id)}`, { method: 'PUT', body: changes }),
   remove: (id) => api(`/products/${encodeURIComponent(id)}`, { method: 'DELETE' })
 };
 
@@ -120,9 +164,16 @@ export const salesApi = {
 
 export const authApi = {
   login: (credentials) => api('/auth/login', { method: 'POST', body: credentials }),
-  register: (credentials) => api('/auth/register', { method: 'POST', body: credentials })
+  register: (credentials) => api('/auth/register', { method: 'POST', body: credentials }),
+  profile: () => api('/auth/profile'),
+  updateProfile: (changes) => api('/auth/profile', { method: 'PUT', body: changes }),
+  uploadProfilePhoto,
+  changePassword: (credentials) => api('/auth/change-password', { method: 'POST', body: credentials })
 };
 
+export const customerOrderApi = {
+  list: () => api('/orders')
+};
 export const reportApi = {
   getSummary: () => api('/reports/summary'),
   getDashboard: (range = '7d') => api(`/reports/dashboard${queryString({ range })}`)

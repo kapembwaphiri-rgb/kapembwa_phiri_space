@@ -1,6 +1,7 @@
 import { Check, Plus, Shirt } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useCart } from '../context/CartContext.jsx';
+import { assetUrl } from '../services/api.js';
 import { formatZmw } from '../utils/currency.js';
 
 export default function ProductCard({ product }) {
@@ -10,7 +11,7 @@ export default function ProductCard({ product }) {
 	const [selectedSize, setSelectedSize] = useState(product.sizes?.length === 1 && Number(product.sizes[0].quantity) > 0
 		? product.sizes[0].size : '');
 	const [error, setError] = useState('');
-	const images = product.images?.length ? product.images : [product.image_url || product.image].filter(Boolean);
+	const images = (product.images?.length ? product.images : [product.image_url || product.image].filter(Boolean)).map(assetUrl);
 	const stock = Number(product.stock_quantity ?? product.quantity ?? 0);
 	const variants = product.sizes || [{ size: 'ONE_SIZE', quantity: stock }];
 	const selectedStock = Number(variants.find((variant) => variant.size === selectedSize)?.quantity ?? stock);

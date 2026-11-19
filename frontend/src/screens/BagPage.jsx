@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCart } from '../context/CartContext.jsx';
+import { assetUrl } from '../services/api.js';
 import { formatZmw } from '../utils/currency.js';
 
 export default function BagPage({ user }) {
@@ -17,7 +18,7 @@ export default function BagPage({ user }) {
         <div className="bag-items">
           {cart.map((item) => <article className="bag-item" key={`${item.id}-${item.size || 'ONE_SIZE'}`}>
             {item.image_url
-              ? <img src={item.image_url} alt="" loading="lazy" />
+              ? <img src={assetUrl(item.image_url)} alt="" loading="lazy" />
               : <div className="bag-item-placeholder" aria-hidden="true">CHI-WHITE</div>}
             <div className="bag-item-details">
               <span className="tag">{item.category}</span>
